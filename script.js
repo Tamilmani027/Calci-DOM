@@ -5,38 +5,31 @@ const display = document.getElementById("calci-input");
 const add = (a, b) => a + b;
 const subtract = (a, b) => a - b;
 const multiply = (a, b) => a * b;
+const divide = (a, b) => (b !== 0 ? a / b : "Error: Division by zero");
+const modulus = (a, b) => (b !== 0 ? a % b : "Error: Modulus by zero");
 
-const divide = (a, b) => {
-  if (b === 0) throw new Error("Division by zero");
-  return a / b;
-};
-
-const modulus = (a, b) => {
-  if (b === 0) throw new Error("Modulus by zero");
-  return a % b;
-};
-
-// Safe parser with parentheses + modulus + unary minus support
+// Safe parser with parentheses + modulus
 function calculate(expression) {
   try {
-    // Handle unary minus: turn "-5+3" into "0-5+3", "(-5+3)" into "(0-5+3)"
-    let expr = expression.replace(/^-/, "0-").replace(/\(-/g, "(0-");
+    // normalize and handle unary minus (leading or after '(')
+    expression = expression.replace(/\s+/g, "");
+    expression = expression.replace(/(^|[\(])-/g, "$10-");
 
-    const tokens = expr.match(/(\d+\.?\d*|\+|\-|\*|\/|%|\(|\))/g);
+    // match numbers including leading-dot decimals like .5
+    const tokens = expression.match(/(\d*\.\d+|\d+|\+|\-|\*|\/|%|\(|\))/g);
     if (!tokens) return "Error";
 
     const output = [];
     const operators = [];
     const precedence = { "+": 1, "-": 1, "*": 2, "/": 2, "%": 2 };
-    const isOp = (t) => ["+", "-", "*", "/", "%"].includes(t);
 
     tokens.forEach(token => {
       if (!isNaN(token)) {
         output.push(parseFloat(token));
-      } else if (isOp(token)) {
+      } else if (["+","-","*","/","%"].includes(token)) {
         while (
           operators.length &&
-          isOp(operators[operators.length - 1]) &&
+          ["+","-","*","/","%"].includes(operators[operators.length - 1]) &&
           precedence[operators[operators.length - 1]] >= precedence[token]
         ) {
           output.push(operators.pop());
@@ -64,8 +57,6 @@ function calculate(expression) {
       } else {
         const b = stack.pop();
         const a = stack.pop();
-        if (a === undefined || b === undefined) throw new Error("Malformed expression");
-
         let result;
         switch (token) {
           case "+": result = add(a, b); break;
@@ -78,26 +69,24 @@ function calculate(expression) {
       }
     });
 
-    if (stack.length !== 1 || isNaN(stack[0])) return "Error";
-    return stack[0];
-  } catch (e) {
-    return "Error: " + e.message;
+    return stack.length === 1 ? stack[0] : "Error";
+  } catch {
+    return "Error";
   }
 }
 
 // Button handling
 buttons.forEach(button => {
-  button.addEventListener("click", function () {
+  button.addEventListener("click", function() {
     const value = button.textContent;
     if (value === "AC") {
       display.value = "";
     } else if (value === "=") {
       display.value = calculate(display.value);
     } else {
-      // prevent double operators (but allow a leading "-" for negative numbers)
-      const isOperator = ["+", "-", "*", "/", "%"].includes(value);
-      const lastChar = display.value.slice(-1);
-      if (isOperator && ["+", "-", "*", "/", "%"].includes(lastChar)) {
+      // prevent double operators
+      if (["+","-","*","/","%"].includes(value) &&
+          ["+","-","*","/","%"].includes(display.value.slice(-1))) {
         return;
       }
       display.value += value;
@@ -106,17 +95,14 @@ buttons.forEach(button => {
 });
 
 // Keyboard input handling
-document.addEventListener("keydown", function (event) {
-  // Let browser/OS shortcuts (copy, refresh, devtools, etc.) pass through untouched
-  if (event.ctrlKey || event.metaKey || event.altKey) return;
-
+document.addEventListener("keydown", function(event) {
   const allowedKeys = ["0","1","2","3","4","5","6","7","8","9","+","-","*","/","%",".","Enter","Backspace","(",")"];
 
   if (allowedKeys.includes(event.key)) {
     if (!isNaN(event.key) || ["+","-","*","/","%","(",")","."].includes(event.key)) {
-      const isOperator = ["+","-","*","/","%"].includes(event.key);
-      const lastChar = display.value.slice(-1);
-      if (isOperator && ["+","-","*","/","%"].includes(lastChar)) {
+      // prevent double operators
+      if (["+","-","*","/","%"].includes(event.key) &&
+          ["+","-","*","/","%"].includes(display.value.slice(-1))) {
         return;
       }
       display.value += event.key;
